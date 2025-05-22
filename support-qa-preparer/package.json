@@ -1,0 +1,23 @@
+{
+    "name": "zendesk-ticket-exporter",
+    "version": "1.0.0",
+    "description": "Выгрузка случайных тикетов из Zendesk в Google Sheets для QA",
+    "main": "zendesk_export.js",
+    "scripts": {
+      "start": "node zendesk_export.js"
+    },
+    "bin": {
+      "zendesk-export": "./zendesk_export.js"
+    },
+    "author": "Автор скрипта",
+    "license": "MIT",
+    "dependencies": {
+      "axios": "^1.6.8",
+      "commander": "^11.1.0",
+      "dayjs": "^1.11.10",
+      "dotenv": "^16.3.1",
+      "lodash": "^4.17.21"
+    },
+    "type": "module"
+  }
+  
