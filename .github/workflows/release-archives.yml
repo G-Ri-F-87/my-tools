@@ -1,0 +1,38 @@
+name: Create ZIP archives and publish release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # нужно для создания релиза
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Create ZIPs for each folder in root
+        run: |
+          mkdir zips
+          for dir in */ ; do
+            if [[ "$dir" != ".github/" && "$dir" != "zips/" ]]; then
+              name=$(basename "$dir")
+              zip -r "zips/$name.zip" "$dir"
+            fi
+          done
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Automatic Release"
+          body: "Automatic release of all top-level folders as ZIP archives."
+          files: zips/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
