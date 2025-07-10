@@ -1,0 +1,19 @@
+{
+  "name": "zendesk-chat-schedule-check",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Check late agent appearances in Zendesk Chat timeline",
+  "main": "schedule_check.js",
+  "scripts": {
+    "start": "node schedule_check.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cli-progress": "^3.12.0",
+    "date-fns": "^3.6.0",
+    "dotenv": "^16.4.5",
+    "yargs": "^17.7.2"
+  },
+  "author": "",
+  "license": "MIT"
+}
