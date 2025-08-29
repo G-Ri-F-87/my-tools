@@ -242,7 +242,16 @@ function printShiftViolations(violations, names) {
 }
 
 function formatToUTC(date) {
-  return format(date, "dd-MM-yyyy HH:mm:ss 'UTC'");
+
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0'); // месяцы с 0
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+
+    const hh = String(date.getUTCHours()).padStart(2, '0');
+    const min = String(date.getUTCMinutes()).padStart(2, '0');
+    const ss = String(date.getUTCSeconds()).padStart(2, '0');
+
+    return `${dd}-${mm}-${yyyy} ${hh}:${min}:${ss} UTC`;
 }
 
 (async () => {
