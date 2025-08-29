@@ -11,6 +11,7 @@ import {
     addMinutes,
     subMinutes,
     startOfHour,
+    format,
 } from "date-fns";
 import { exec } from "child_process";
 import fs from "fs/promises";
@@ -229,15 +230,19 @@ function printShiftViolations(violations, names) {
         const name = names[v.agentId] || `Agent#${v.agentId}`;
 
         if (v.isLate && v.isEarly) {
-            console.log(`⚠️ ${name} was late and left early: ${v.actualStart.toISOString()} — ${v.actualEnd.toISOString()}`);
+            console.log(`⚠️ ${name} was late and left early: ${formatToUTC(v.actualStart)} — ${formatToUTC(v.actualEnd)}`);
         } else if (v.isLate) {
-            console.log(`⏰ ${name} was late: ${v.actualStart.toISOString()} (expected ${v.expectedStart.toISOString()})`);
+            console.log(`⏰ ${name} was late: ${formatToUTC(v.actualStart)} (expected ${formatToUTC(v.expectedStart)})`);
         } else if (v.isEarly) {
-            console.log(`📉 ${name} left early at ${v.actualEnd.toISOString()} (expected until ${v.expectedEnd.toISOString()})`);
+            console.log(`📉 ${name} left early at ${formatToUTC(v.actualStart)} (expected until ${formatToUTC(v.actualEnd)})`);
         } else if (v.isTooEarly) {
-            console.log(`⚠️ ${name} started unusually early at ${v.actualStart.toISOString()} (expected from ${v.expectedStart.toISOString()})`);
+            console.log(`⚠️ ${name} started unusually early at ${formatToUTC(v.actualStart)} (expected from ${formatToUTC(v.expectedStart)})`);
         }
     }
+}
+
+function formatToUTC(date) {
+  return format(date, "dd-MM-yyyy HH:mm:ss 'UTC'");
 }
 
 (async () => {
