@@ -234,7 +234,7 @@ function printShiftViolations(violations, names) {
         } else if (v.isLate) {
             console.log(`⏰ ${name} was late: ${formatToUTC(v.actualStart)} (expected ${formatToUTC(v.expectedStart)})`);
         } else if (v.isEarly) {
-            console.log(`📉 ${name} left early at ${formatToUTC(v.actualStart)} (expected until ${formatToUTC(v.actualEnd)})`);
+            console.log(`📉 ${name} left early at ${formatToUTC(v.actualEnd)} (expected until ${formatToUTC(v.expectedEnd)})`);
         } else if (v.isTooEarly) {
             console.log(`⚠️ ${name} started unusually early at ${formatToUTC(v.actualStart)} (expected from ${formatToUTC(v.expectedStart)})`);
         }
