@@ -11,7 +11,7 @@ import {
     addMinutes,
     subMinutes,
     startOfHour,
-    format,
+    addHours,
 } from "date-fns";
 import { exec } from "child_process";
 import fs from "fs/promises";
@@ -220,6 +220,30 @@ async function resolveAgentNames(agentIds) {
     return names;
 }
 
+function getTeamShiftLabel(expectedStartUTC) {
+    function formatSlot(team, localStart, localEnd) {
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${team} ${pad(localStart.getUTCHours())}:00-${pad(localEnd.getUTCHours())}:00`;
+    }
+
+    // navy shift: GMT+10
+    const navyStart = addHours(expectedStartUTC, 10);
+    const navyEnd = addHours(expectedStartUTC, 12);
+    if (navyStart.getUTCHours() >= 7 && navyStart.getUTCHours() < 15) {
+        return formatSlot("navy", navyStart, navyEnd);
+    }
+
+    // terra shift: GMT+4
+    const terraStart = addHours(expectedStartUTC, 4);
+    const terraEnd = addHours(expectedStartUTC, 6);
+    // special case: shift can cross midnight
+    if (terraStart.getUTCHours() >= 9 ?? terraStart.getUTCHours() < 1) {
+        return formatSlot("terra", terraStart, terraEnd);
+    }
+
+    return "unknown shift";
+}
+
 function printShiftViolations(violations, names) {
     if (violations.length === 0) {
         console.log("✅ Everyone was on time and left on time.");
@@ -227,16 +251,21 @@ function printShiftViolations(violations, names) {
     }
 
     for (const v of violations) {
-        const name = names[v.agentId] || `Agent#${v.agentId}`;
+        let name = names[v.agentId] || `Agent#${v.agentId}`;
+        // remove @lightspeed.com if present
+        if (name.endsWith("@lightspeedhq.com")) {
+            name = name.replace("@lightspeedhq.com", "");
+        }
+        const shiftLabel = getTeamShiftLabel(v.expectedStart);
 
         if (v.isLate && v.isEarly) {
-            console.log(`⚠️ ${name} was late and left early: ${formatToUTC(v.actualStart)} — ${formatToUTC(v.actualEnd)}`);
+            console.log(`⚠️ ${name} was late and left early\t${formatToUTC(v.actualStart)} — ${formatToUTC(v.actualEnd)}|${shiftLabel}`);
         } else if (v.isLate) {
-            console.log(`⏰ ${name} was late: ${formatToUTC(v.actualStart)} (expected ${formatToUTC(v.expectedStart)})`);
+            console.log(`⏰ ${name} was late\t${formatToUTC(v.actualStart)}\t(expected ${formatToUTC(v.expectedStart)}|${shiftLabel})`);
         } else if (v.isEarly) {
-            console.log(`📉 ${name} left early at ${formatToUTC(v.actualEnd)} (expected until ${formatToUTC(v.expectedEnd)})`);
+            console.log(`📉 ${name} left early\t${formatToUTC(v.actualEnd)}\t(expected until ${formatToUTC(v.expectedEnd)}|${shiftLabel})`);
         } else if (v.isTooEarly) {
-            console.log(`⚠️ ${name} started unusually early at ${formatToUTC(v.actualStart)} (expected from ${formatToUTC(v.expectedStart)})`);
+            console.log(`⚠️ ${name} started unusually early\t${formatToUTC(v.actualStart)}\t(expected from ${formatToUTC(v.expectedStart)}|${shiftLabel})`);
         }
     }
 }
