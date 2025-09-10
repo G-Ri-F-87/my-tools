@@ -95,6 +95,7 @@ function separateAndSampleTickets(tickets, count = 15) {
   // group: chat (normalize channel to "chat")
   const chat = tickets
     .filter((t) => t.via && t.via.channel === "chat")
+    .filter((t) => t.tags && t.tags.includes("zd_chat_ended"))
     .map((t) => rewriteChannel(t, "chat"));
 
   // group: email/web tickets with agent reply
