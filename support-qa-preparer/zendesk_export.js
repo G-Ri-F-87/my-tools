@@ -39,7 +39,7 @@ const zendesk = axios.create({
 });
 
 // Fetch tickets for the specified agents and month
-async function getTicketsForAgents(agents, month) {
+async function getTicketsForAgents(agents, month, billingMode) {
   const start = dayjs(`${month}-01`);
   const end = start.endOf('month');
 
@@ -58,8 +58,12 @@ async function getTicketsForAgents(agents, month) {
       params = {};
 
     }
-    const { chat, email } = separateAndSampleTickets(fullResponse)
-    results.push(...chat, ...email);
+    const { chat, email, billing } = separateAndSampleTickets(fullResponse)
+    if (billingMode) {
+      results.push(...billing);
+    } else {
+      results.push(...chat, ...email);
+    }
 
   }
   return results;
@@ -67,21 +71,55 @@ async function getTicketsForAgents(agents, month) {
 
 // Separate and randomly select chat and email tickets
 function separateAndSampleTickets(tickets, count = 15) {
-  const chat = tickets.filter(t => t.via && t.via.channel === 'chat');
-  const email = tickets
-        .filter(t => t.via && (t.via.channel === 'email' || t.via.channel === 'web'))
-        .filter(t => t.tags && t.tags.includes('agent_replied'))
-        .map(t => ({
-          ...t,
-          via: {
-            ...t.via,
-            channel: 'email' // force channel value 
-          }
-        }));
+  // helper: check if ticket has billing-related tag
+  function hasBillingTag(ticket) {
+    return (
+      ticket.tags &&
+      (ticket.tags.includes("billing") ||
+        ticket.tags.includes("billing-issue") ||
+        ticket.tags.includes("login-issue"))
+    );
+  }
+
+  // helper: rewrite ticket channel to given value
+  function rewriteChannel(ticket, channel) {
+    return {
+      ...ticket,
+      via: {
+        ...ticket.via,
+        channel,
+      },
+    };
+  }
+
+  // group: chat (normalize channel to "chat")
+  const chat = tickets
+    .filter((t) => t.via && t.via.channel === "chat")
+    .map((t) => rewriteChannel(t, "chat"));
+
+  // group: email/web tickets with agent reply
+  const emailCandidates = tickets
+    .filter(
+      (t) =>
+        t.via &&
+        (t.via.channel === "email" || t.via.channel === "web")
+    )
+    .filter((t) => t.tags && t.tags.includes("agent_replied"));
+
+  // group: billing 
+  const billing = emailCandidates
+    .filter(hasBillingTag)
+    .map((t) => rewriteChannel(t, "billing"));
+
+  // group: email without billing
+  const email = emailCandidates
+    .filter((t) => !hasBillingTag(t))
+    .map((t) => rewriteChannel(t, "email"));
 
   return {
+    billing: lodash.sampleSize(billing, count),
     chat: lodash.sampleSize(chat, count),
-    email: lodash.sampleSize(email, count)
+    email: lodash.sampleSize(email, count),
   };
 }
 
@@ -93,8 +131,8 @@ function printTicketsForSpreadsheet(tickets, zendeskDomain) {
 }
 
 // Main function
-async function main({ agents, month }) {
-  const tickets = await getTicketsForAgents(agents, month);
+async function main({ agents, month, billingMode }) {
+  const tickets = await getTicketsForAgents(agents, month, billingMode);
 
   printTicketsForSpreadsheet(tickets, process.env.ZENDESK_SUBDOMAIN);
 }
@@ -103,6 +141,7 @@ async function main({ agents, month }) {
 program
   .requiredOption('-a, --agents <emails> <name>', 'Comma-separated list of agent emails with name from gSuite')
   .requiredOption('-m, --month <month>', 'Month in format YYYY-MM')
+  .option('-b, --billing', 'Show only billing tickets')
   .parse();
 
 const options = program.opts();
@@ -112,10 +151,11 @@ const agents = options.agents
   .map(str => str.split(' '))
   .map(([email, ...rest]) => ({ email: email, name: rest.join(' ') }));
 const month = options.month;
+const billingMode = options.billing;
 
 
 
-main({ agents, month }).catch(err => {
+main({ agents, month, billingMode }).catch(err => {
   console.error('❌ Execution error: ', err.message);
   process.exit(1);
 });

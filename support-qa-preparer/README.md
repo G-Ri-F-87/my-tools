@@ -21,7 +21,7 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 ```
 
 3. Install Node.js and npm
-Use Homebrew to install Node.js, which includes npm:
+   Use Homebrew to install Node.js, which includes npm:
 
 ```bash
 brew install node
@@ -35,7 +35,6 @@ npm -v
 ```
 
 ✅ You should see version numbers printed for both commands.
-
 
 ## 🔧 Installation
 
@@ -64,6 +63,8 @@ Parameters:
 -a or --agents — comma-separated list of agent emails
 
 -m or --month — month in YYYY-MM format
+
+-b or --billing - show only billing issues
 
 ### 📤 What the script does
 
