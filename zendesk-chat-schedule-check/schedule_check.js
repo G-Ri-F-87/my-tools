@@ -127,6 +127,12 @@ function roundDownToOddHour(date) {
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), oddHour, 0, 0));
 }
 
+function toUTC_HHMM(date) {
+    const h = String(date.getUTCHours()).padStart(2, "0");
+    const m = String(date.getUTCMinutes()).padStart(2, "0");
+    return `${h}:${m}`;
+}
+
 function detectShiftViolations(timelineMap) {
     const results = [];
     const GRACE_MINUTES = 1;
@@ -151,7 +157,7 @@ function detectShiftViolations(timelineMap) {
             let sessionEndIndex = -1;
             for (let j = i; j < sorted.length; j++) {
                 const r = sorted[j];
-                if (r.status === "invisible") {
+                if (r.status === "invisible" || r.status === "away") {
                     const nextOnline = sorted.slice(j + 1).find((e) => e.status === "online");
                     const gap = nextOnline?.ts ? nextOnline.ts.getTime() - r.ts.getTime() : Infinity;
                     if (gap > 5 * 60 * 1000) {
@@ -174,6 +180,36 @@ function detectShiftViolations(timelineMap) {
             const isTooEarly = isBefore(sessionStart.ts, earlyAcceptableStart);
             const isEarly = isAfter(earlyLeaveThreshold, actualEnd);
 
+            // build compacted event chain (online, invisible, away)
+            const slice = sorted.slice(
+                sorted.indexOf(sessionStart),
+                sessionEndIndex !== -1 ? sessionEndIndex + 1 : sorted.length
+            );
+
+            const sessionEvents = slice
+                .map(ev => {
+                    const start = ev.ts;
+                    const end = ev.duration ? new Date(ev.ts.getTime() + ev.duration * 1000) : null;
+                    return { status: ev.status, start, end };
+                })
+                .reduce((acc, ev) => {
+                    const last = acc[acc.length - 1];
+                    if (last && last.status === ev.status) {
+                        if (ev.end && (!last.end || ev.end > last.end)) {
+                            last.end = ev.end;
+                        }
+                    } else {
+                        acc.push({ ...ev });
+                    }
+                    return acc;
+                }, [])
+                .map(ev => {
+                    const startStr = toUTC_HHMM(ev.start);
+                    const endStr = ev.end ? toUTC_HHMM(ev.end) : "";
+                    return `${ev.status}(${startStr}${endStr ? "-" + endStr : ""})`;
+                })
+                .join("|");
+
             if (isLate || isEarly || isTooEarly) {
                 results.push({
                     agentId,
@@ -183,7 +219,8 @@ function detectShiftViolations(timelineMap) {
                     actualEnd,
                     isLate,
                     isEarly,
-                    isTooEarly
+                    isTooEarly,
+                    sessionEvents
                 });
             }
 
@@ -252,23 +289,24 @@ function printShiftViolations(violations, names) {
 
     for (const v of violations) {
         let name = names[v.agentId] || `Agent#${v.agentId}`;
-        // remove @lightspeed.com if present
+        // remove @lightspeedhq.com if present
         if (name.endsWith("@lightspeedhq.com")) {
             name = name.replace("@lightspeedhq.com", "");
         }
         const shiftLabel = getTeamShiftLabel(v.expectedStart);
 
         if (v.isLate && v.isEarly) {
-            console.log(`⚠️ ${name} was late and left early\t${formatToUTC(v.actualStart)} — ${formatToUTC(v.actualEnd)}|${shiftLabel}`);
+            console.log(`⚠️ ${name} was late and left early\t${formatToUTC(v.actualStart)} — ${formatToUTC(v.actualEnd)}\t(expected ${formatToUTC(v.expectedStart)} — ${formatToUTC(v.expectedEnd)}|${shiftLabel})\t${v.sessionEvents}`);
         } else if (v.isLate) {
-            console.log(`⏰ ${name} was late\t${formatToUTC(v.actualStart)}\t(expected ${formatToUTC(v.expectedStart)}|${shiftLabel})`);
+            console.log(`⏰ ${name} was late\t${formatToUTC(v.actualStart)}\t(expected ${formatToUTC(v.expectedStart)}|${shiftLabel})\t${v.sessionEvents}`);
         } else if (v.isEarly) {
-            console.log(`📉 ${name} left early\t${formatToUTC(v.actualEnd)}\t(expected until ${formatToUTC(v.expectedEnd)}|${shiftLabel})`);
+            console.log(`📉 ${name} left early\t${formatToUTC(v.actualEnd)}\t(expected until ${formatToUTC(v.expectedEnd)}|${shiftLabel})\t${v.sessionEvents}`);
         } else if (v.isTooEarly) {
-            console.log(`⚠️ ${name} started unusually early\t${formatToUTC(v.actualStart)}\t(expected from ${formatToUTC(v.expectedStart)}|${shiftLabel})`);
+            console.log(`⚠️ ${name} started unusually early\t${formatToUTC(v.actualStart)}\t(expected from ${formatToUTC(v.expectedStart)}|${shiftLabel})\t${v.sessionEvents}`);
         }
     }
 }
+
 
 function formatToUTC(date) {
 
