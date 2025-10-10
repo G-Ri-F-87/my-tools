@@ -1,11 +1,13 @@
+// File: WorkdayScheduleRunner.tm.js
 // ==UserScript==
 // @name         Workday Schedule Runner (menu-launch, compact controls)
 // @namespace    local
-// @version      1.3.5
-// @description  Parse SHIFTS text, run Workday updates. Launch from Tampermonkey menu. Movable modal with ultra-compact 12x12 controls inline. Supports new input line format with userscript.html prefix.
+// @version      1.4.1
+// @description  Parse SHIFTS text, run Workday updates. Transparent modal for visible background during processing. Detects employees with leave events and reports them in the status box after all actions complete.
 // @match        https://*.myworkday.com/*
 // @run-at       document-idle
 // @grant        GM_registerMenuCommand
+// @grant        unsafeWindow
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/WorkdayScheduleRunner.tm.js
 // @downloadURL  https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/WorkdayScheduleRunner.tm.js
 // ==/UserScript==
@@ -32,15 +34,16 @@
   };
 
   const Z = 2147483647;
-  const LIST_SELECTOR        = 'div[data-automation-id="calendarNavigationOverlay"]+div ul[data-automation-id="selectedItemList"] div[data-automation-id="menuItem"]';
+  const LIST_SELECTOR = 'div[data-automation-id="calendarNavigationOverlay"]+div ul[data-automation-id="selectedItemList"] div[data-automation-id="menuItem"]';
   const CHART_GROUP_SELECTOR = 'div[data-automation-id="chartOuterContainer"] svg > g:nth-child(2)';
   const POPUP_PANEL_SELECTOR = 'div[data-automation-id="popUpDialog"] div[data-automation-id="panel"]';
-  const TOOLBAR_SELECTOR     = 'div[data-automation-id="popUpDialog"] div[data-automation-id="toolbarButtonContainer"]';
+  const TOOLBAR_SELECTOR = 'div[data-automation-id="popUpDialog"] div[data-automation-id="toolbarButtonContainer"]';
   const DAY_TO_INDEX = { Tue:0, Wed:1, Thu:2, Fri:3, Sat:4, Sun:5, Mon:6 };
+
+  const employeesWithLeave = new Set();
 
   GM_registerMenuCommand("Run Workday Schedule", openUI);
 
-  // ---------------- UI ----------------
   function openUI() {
     if (document.getElementById("sr-modal")) return;
     injectStyles();
@@ -77,7 +80,6 @@
 
     $("#sr-close").onclick = () => m.remove();
 
-    // сетка перемещения
     m.querySelectorAll(".sr-controls button").forEach(btn => {
       btn.onclick = () => {
         const pos = btn.dataset.pos;
@@ -116,8 +118,9 @@
         }
       }
 
+      await finalizeReport();
+
       card.style.opacity = "1.0";
-      status.textContent += `\n✅ All actions processed`;
     };
   }
 
@@ -126,7 +129,7 @@
     const style = document.createElement("style");
     style.id = "sr-style";
     style.textContent = `
-      .sr-modal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:${Z};display:flex;align-items:center;justify-content:center}
+      .sr-modal{position:fixed;inset:0;background:transparent;z-index:${Z};display:flex;align-items:center;justify-content:center}
       .sr-card{background:#111;color:#eee;border:1px solid #333;border-radius:12px;max-width:860px;width:94vw;max-height:90vh;overflow:auto;padding:16px;font-family:system-ui,Segoe UI,Roboto,Arial;transition:opacity .3s ease}
       .sr-card textarea{width:100%;box-sizing:border-box;background:#0c0c0c;color:#eee;border:1px solid #333;border-radius:8px;padding:8px;margin:6px 0;font-family:monospace;min-height:120px}
       .sr-btn{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;margin:0 6px 0 0;border:1px solid #3a3a3a;border-radius:8px;background:#1b1b1b;color:#fff;cursor:pointer}
@@ -138,7 +141,6 @@
     document.head.appendChild(style);
   }
 
-  // ---------------- Parsing ----------------
   function parseActions(input) {
     const lines = (input || "").split(/\r?\n/);
     let section = null;
@@ -154,7 +156,6 @@
       if (/^total\b/i.test(line)) continue;
       if (section !== "shifts") continue;
 
-      // strip technical prefixes like VM5321:102 or userscript.html?...:98
       const stripped = line.replace(/^.*?\s+([a-z0-9._-]+\s*\(\d+\)\s*:.*)$/i, "$1");
       const m = stripped.match(/^([a-z0-9._-]+)\s*\(\d+\)\s*:\s*(.+)$/i);
       if (!m) continue;
@@ -180,7 +181,6 @@
     return map[k] || null;
   }
 
-  // ---------------- Workday helpers ----------------
   function getScheduleBlocks() {
     const g = document.querySelector(CHART_GROUP_SELECTOR);
     if (!g) throw new Error("SVG group not found");
@@ -196,12 +196,42 @@
     return blocks;
   }
 
-  function getPersonBlock(personIndex) {
-    const blocks = getScheduleBlocks();
-    if (personIndex == null || personIndex < 0 || personIndex >= blocks.length) {
-      throw new Error(`Person index ${personIndex} out of range`);
+  function hasLeave(block) {
+    const rects = block.filter(el => el.tagName.toLowerCase() === 'rect' && el.getAttribute('data-automation-id') === 'timelineevent');
+    if (rects.length > 1) {
+      const widths = rects.map(r => parseFloat(r.getAttribute('width')) || 0);
+      const minWidth = Math.min(...widths);
+      const maxWidth = Math.max(...widths);
+      return (maxWidth - minWidth > 5);
     }
-    return blocks[personIndex];
+    return false;
+  }
+
+  async function openScheduleChangeDialogByDay(dayIndex, personIndex, name) {
+    const block = getPersonBlock(personIndex);
+
+    if (hasLeave(block)) {
+      employeesWithLeave.add(name);
+    }
+
+    const target = getDayRect(block, dayIndex);
+    imitateClick(target);
+    await waitFor(POPUP_PANEL_SELECTOR, 4000);
+  }
+
+  async function finalizeReport() {
+    const statusBox = document.querySelector('#sr-status');
+    if (!statusBox) return;
+
+    if (employeesWithLeave.size > 0) {
+      let message = '\n';
+      employeesWithLeave.forEach(n => {
+        message += `⚠️ ${n} has a leave this week, please check their schedule.\n`;
+      });
+      statusBox.textContent += `\n${message.trim()}`;
+    }
+
+    statusBox.textContent += `\n✅ All actions processed`;
   }
 
   function getDayRect(block, dayIndex) {
@@ -215,14 +245,14 @@
     return rects[dayIndex];
   }
 
-  async function openScheduleChangeDialogByDay(dayIndex, personIndex) {
-    const block = getPersonBlock(personIndex);
-    const target = getDayRect(block, dayIndex);
-    imitateClick(target);
-    await waitFor(POPUP_PANEL_SELECTOR, 4000);
+  function getPersonBlock(personIndex) {
+    const blocks = getScheduleBlocks();
+    if (personIndex == null || personIndex < 0 || personIndex >= blocks.length) {
+      throw new Error(`Person index ${personIndex} out of range`);
+    }
+    return blocks[personIndex];
   }
 
-  // ---------------- Actions ----------------
   function imitateClick(target) {
     if (!target) return;
     try { target.scrollIntoView({ block: 'center', inline: 'center' }); } catch {}
@@ -274,7 +304,7 @@
     const dayIndex = DAY_TO_INDEX[action.day];
     if (dayIndex == null || action.personIndex == null || action.personIndex < 0) return;
 
-    await openScheduleChangeDialogByDay(dayIndex, action.personIndex);
+    await openScheduleChangeDialogByDay(dayIndex, action.personIndex, action.name);
     await delay(500);
 
     await changeInTime("05:00 AM");
@@ -287,7 +317,6 @@
     await delay(5000);
   }
 
-  // ---------------- Utils ----------------
   function waitFor(selector, timeout = 3000) {
     return new Promise((resolve, reject) => {
       const el = document.querySelector(selector);
@@ -308,5 +337,4 @@
   }
 
   const delay = (ms)=>new Promise(r=>setTimeout(r,ms));
-
 })();
