@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Workday Schedule Runner (menu-launch, compact controls)
 // @namespace    local
-// @version      1.3.4
+// @version      1.3.5
 // @description  Parse SHIFTS text, run Workday updates. Launch from Tampermonkey menu. Movable modal with ultra-compact 12x12 controls inline. Supports new input line format with userscript.html prefix.
 // @match        https://*.myworkday.com/*
 // @run-at       document-idle
@@ -228,7 +228,7 @@
     try { target.scrollIntoView({ block: 'center', inline: 'center' }); } catch {}
     const r = target.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    const mk = (type) => new MouseEvent(type, { bubbles:true, cancelable:true, view:window, clientX:cx, clientY:cy });
+    const mk = (type) => new MouseEvent(type, { bubbles:true, cancelable:true, view:unsafeWindow, clientX:cx, clientY:cy });
     target.dispatchEvent(mk('mousedown'));
     target.dispatchEvent(mk('mouseup'));
     target.dispatchEvent(mk('click'));
