@@ -17,7 +17,7 @@
   const config = {
     debug: true,
     names: [
-      'Aiah', 'vince', 'Joanne', 'Jesse', 'Joselle', 'Joriel Salandanan',
+      'Aiah', 'vince', 'Joanne', 'Jesse', 'Joselle',
       'Joven Balbastro', 'Rina Dela Rosa', 'Kerren Perez', 'Jassiel Gallego',
       'Chester Nepomuceno', 'Jennifer Tio', 'Camela Valdez'
     ]

@@ -1,17 +1,16 @@
 // ==UserScript==
 // @name         Shift Map Extractor (pandora.ecwid.io)
 // @namespace    rinat.tools
-// @version      1.0.1
+// @version      1.0.2
 // @description  Extracts shifts and day-offs for selected agents on pandora.ecwid.io and prints a formatted report in the console.
 // @match        https://pandora.ecwid.io/*
 // @grant        GM_registerMenuCommand
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/ShiftMap.tm.js
-// @downloadURL  https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/ShiftMap.tm.js
+//
 // === Summary ===
 // This Tampermonkey script runs on pandora.ecwid.io.
 // From the Tampermonkey menu, choose "Run Shift Map" to:
-//   • Collect working shifts (incident, double chats, chats)
+//   • Collect working shifts (incident, billmanchats, double chats, chats)
 //   • Collect day-offs (dayoff, vacation)
 //   • Filter agents by the predefined allowed list
 //   • Print a formatted report to the browser console:
@@ -26,6 +25,7 @@
   const cfg = {
     days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     incidentRowSelector: "tr.shift--incidenter",
+    billmanRowSelector: "tr.shift--billmanchats",
     doubleRowSelector: "tr.shift--doublechats",
     chatsRowSelector: null, // if null, uses the next row after doubleRow
     dayoffRowSelector: "tr.shift--dayoff",
@@ -45,7 +45,7 @@
       "mark.lopez",
       "rina.delarosa",
       "vincent.robin",
-      "jenifer.tio",
+      "jennifer.tio",
       "jassiel.gallego",
     ],
   };
@@ -61,12 +61,13 @@
 
   function extract() {
     const incidentRow = q(cfg.incidentRowSelector);
+    const billmanRow = q(cfg.billmanRowSelector);
     const doubleRow = q(cfg.doubleRowSelector);
     const chatsRow = cfg.chatsRowSelector
       ? q(cfg.chatsRowSelector)
       : doubleRow?.nextElementSibling;
 
-    if (!incidentRow || !doubleRow || !chatsRow) {
+    if (!incidentRow || !billmanRow || !doubleRow || !chatsRow) {
       throw new Error("Shift rows not found — check selectors.");
     }
 
@@ -79,11 +80,17 @@
     // Shifts
     cfg.days.forEach((day, i) => {
       const ic = pickCell(incidentRow, i);
+      const bc = pickCell(billmanRow, i);
       const dc = pickCell(doubleRow, i);
       const cc = pickCell(chatsRow, i);
-      if (!(ic && dc && cc)) return;
+      if (!(ic && bc && dc && cc)) return;
 
-      const names = new Set([...getAgents(ic), ...getAgents(dc), ...getAgents(cc)]);
+      const names = new Set([
+        ...getAgents(ic),
+        ...getAgents(bc),
+        ...getAgents(dc),
+        ...getAgents(cc),
+      ]);
       names.forEach((n) => (shifts[n] = (shifts[n] || []).concat(day)));
     });
 
