@@ -1,0 +1,23 @@
+{
+  "name": "zendesk-original-email",
+  "version": "1.0.0",
+  "description": "Node.js script to link Zendesk tickets with users by parsing original email metadata.",
+  "main": "zendesk_original_email.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node zendesk_original_email.js --filter <FILTER_ID>"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-fetch": "^2.7.0"
+  },
+  "keywords": [
+    "zendesk",
+    "automation",
+    "email",
+    "tickets",
+    "api"
+  ],
+  "author": "Rinat Gainullin",
+  "license": "MIT"
+}
