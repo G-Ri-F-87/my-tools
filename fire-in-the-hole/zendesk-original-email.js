@@ -1,5 +1,5 @@
 // zendesk_original_email.js
-// Usage: node zendesk_original_email.js --filter <FILTER_ID>
+// Usage: node zendesk_original_email.js --filter <FILTER_ID1> <FILTER_ID2> ...
 
 const fetch = require('node-fetch');
 const dotenv = require('dotenv');
@@ -17,7 +17,6 @@ if (!SUBDOMAIN) {
   process.exit(1);
 }
 
-// Check for API credentials
 if (!EMAIL || !API_TOKEN) {
   console.error(`Error: missing Zendesk API authentication credentials.\n` +
     `Add the following variables to your .env file:\n` +
@@ -25,7 +24,6 @@ if (!EMAIL || !API_TOKEN) {
   console.error('If you do not want to use API tokens, set up cookie-based authentication.');
 }
 
-// Check for cookie authentication
 if (!COOKIE_SHARED || !COOKIE_MAIN || !COOKIE_SESSION) {
   console.error(`Error: missing Zendesk cookies.\n` +
     `Log in to Zendesk in your browser and copy the following cookies:\n` +
@@ -81,7 +79,7 @@ async function getTicketsFromFilter(filterId) {
     }
   }
 
-  console.log(`Total tickets found: ${tickets.length}`);
+  console.log(`Total tickets found in filter ${filterId}: ${tickets.length}`);
   return tickets;
 }
 
@@ -192,14 +190,25 @@ async function main() {
   const args = process.argv.slice(2);
   const filterIndex = args.indexOf('--filter');
   if (filterIndex === -1 || !args[filterIndex + 1]) {
-    console.log('Usage: node zendesk_original_email.js --filter <FILTER_ID>');
+    console.log('Usage: node zendesk_original_email.js --filter <FILTER_ID1> <FILTER_ID2> ...');
     process.exit(1);
   }
 
-  const filterId = args[filterIndex + 1];
-  const ticketIds = await getTicketsFromFilter(filterId);
+  const filterIds = args.slice(filterIndex + 1).map(id => id.trim()).filter(Boolean);
+  if (filterIds.length === 0) {
+    console.error('No valid filter IDs provided.');
+    process.exit(1);
+  }
 
-  for (const id of ticketIds) {
+  let allTicketIds = [];
+  for (const filterId of filterIds) {
+    const ticketIds = await getTicketsFromFilter(filterId);
+    allTicketIds = allTicketIds.concat(ticketIds);
+  }
+
+  console.log(`\nTotal tickets across all filters: ${allTicketIds.length}`);
+
+  for (const id of allTicketIds) {
     await processTicket(id);
   }
 

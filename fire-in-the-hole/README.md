@@ -72,11 +72,10 @@ You can get these cookie values by logging into Zendesk in your browser, opening
 
 Paste them into your `.env` file.
 
-
 ## 🚀 Usage
 
 ```bash
-node zendesk_original_email.js --filter <FILTER_ID>
+node zendesk-original-email.js --filter <FILTER_ID>
 ```
 
 ### Parameters
@@ -93,7 +92,6 @@ node zendesk_original_email.js --filter <FILTER_ID>
 6. Searches for an existing Zendesk user with that email or creates one if missing.
 7. Updates the ticket’s requester to match the found or created user.
 8. Logs all actions and results to the console.
-
 
 ## 🧪 Example
 
@@ -118,5 +116,4 @@ All tickets have been processed.
 - **Error: missing Zendesk API credentials** → Check that `ZENDESK_EMAIL` and `ZENDESK_API_TOKEN` are present in `.env`.
 - **Error: missing Zendesk cookies** → Log in to Zendesk and copy `_zendesk_shared_session`, `_zendesk_cookie`, and `_zendesk_session`.
 - **Cannot fetch original email** → Ensure your account has permission to view ticket comments and attachments.
-
 
