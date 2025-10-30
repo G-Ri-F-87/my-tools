@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Pandora Toggle and Schedule Tab Listener
 // @namespace    rinat.tools
-// @version      0.1.1
-// @description  Simplified logs for clarity: combines Schedule Assessment click relaunch and row hover handling after modal close.
+// @version      0.2.0
+// @description  Pre-release version: handles Schedule Assessment tab updates, hover highlights, and Generate modal flow reliably.
 // @match        https://pandora.ecwid.io/*
 // @grant        none
 // @run-at       document-idle
@@ -116,18 +116,30 @@
     scheduleBtn.addEventListener('click', attachRowHoverHandler);
   }
 
-  function addToggleLogger() {
-    const toggle = document.querySelector('.p-menubar .p-menubar-end .p-toggleswitch');
-    if (!toggle) return requestAnimationFrame(addToggleLogger);
+  function addToggleLogger(attempt = 1) {
+    const toggles = document.querySelectorAll('.p-menubar .p-menubar-end .p-toggleswitch');
+
+    if (toggles.length < 2) {
+      if (attempt < 10) {
+        console.log(`⏳ Attempt ${attempt}: waiting for both toggles...`);
+        return setTimeout(() => addToggleLogger(attempt + 1), 300);
+      } else {
+        console.log('❌ Two toggles not found after 10 attempts');
+        return;
+      }
+    }
+
+    const toggle = toggles[0];
+    console.log('🔘 Toggles ready, listener added to first toggle', toggle);
 
     setTimeout(() => {
-      console.log('🔘 Toggle active');
       toggle.addEventListener('click', attachScheduleButtonListener);
+      console.log('✅ Listener attached to first toggle');
     }, 500);
   }
 
   window.addEventListener('load', () => {
-    console.log('🚀 Pandora schedule script started');
+    console.log('🚀 Pandora schedule script started (v0.2.0)');
     addToggleLogger();
     handleDateControlPopup();
   });
