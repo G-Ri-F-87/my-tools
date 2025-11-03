@@ -1,5 +1,7 @@
-// zendesk_original_email.js
-// Usage: node zendesk_original_email.js --filter <FILTER_ID1> <FILTER_ID2> ...
+// zendesk-original-email.js
+// Usage:
+//   node zendesk-original-email.js --filter <FILTER_ID1> <FILTER_ID2> ...
+//   node zendesk-original-email.js --search-all
 
 const fetch = require('node-fetch');
 const dotenv = require('dotenv');
@@ -80,6 +82,30 @@ async function getTicketsFromFilter(filterId) {
   }
 
   console.log(`Total tickets found in filter ${filterId}: ${tickets.length}`);
+  return tickets;
+}
+
+async function searchTicketsAll() {
+  console.log(`\nSearching all open tickets from Intercom senders...`);
+  let tickets = [];
+  let page = `/search.json?query=${encodeURIComponent('requester:*@ecwid-by-lightspeed.intercom-mail.com status:open')}`;
+
+  while (page) {
+    const data = await zendeskRequest(page.replace(`/api/v2`, ''));
+    if (data.results && data.results.length) {
+      const found = data.results.filter(r => r.result_type === 'ticket').map(r => r.id);
+      tickets = tickets.concat(found);
+      console.log(`Loaded ${tickets.length} tickets so far...`);
+    }
+
+    if (data.next_page) {
+      page = data.next_page.replace(`https://${SUBDOMAIN}.zendesk.com/api/v2`, '');
+    } else {
+      page = null;
+    }
+  }
+
+  console.log(`Total tickets found by search: ${tickets.length}`);
   return tickets;
 }
 
@@ -189,24 +215,24 @@ async function processTicket(ticketId) {
 async function main() {
   const args = process.argv.slice(2);
   const filterIndex = args.indexOf('--filter');
-  if (filterIndex === -1 || !args[filterIndex + 1]) {
-    console.log('Usage: node zendesk_original_email.js --filter <FILTER_ID1> <FILTER_ID2> ...');
-    process.exit(1);
-  }
-
-  const filterIds = args.slice(filterIndex + 1).map(id => id.trim()).filter(Boolean);
-  if (filterIds.length === 0) {
-    console.error('No valid filter IDs provided.');
-    process.exit(1);
-  }
+  const searchAll = args.includes('--search-all');
 
   let allTicketIds = [];
-  for (const filterId of filterIds) {
-    const ticketIds = await getTicketsFromFilter(filterId);
-    allTicketIds = allTicketIds.concat(ticketIds);
+
+  if (searchAll) {
+    allTicketIds = await searchTicketsAll();
+  } else if (filterIndex !== -1 && args[filterIndex + 1]) {
+    const filterIds = args.slice(filterIndex + 1).map(id => id.trim()).filter(Boolean);
+    for (const filterId of filterIds) {
+      const ticketIds = await getTicketsFromFilter(filterId);
+      allTicketIds = allTicketIds.concat(ticketIds);
+    }
+  } else {
+    console.log('Usage: node zendesk-original-email.js --filter <FILTER_ID1> <FILTER_ID2> ... | --search-all');
+    process.exit(1);
   }
 
-  console.log(`\nTotal tickets across all filters: ${allTicketIds.length}`);
+  console.log(`\nTotal tickets to process: ${allTicketIds.length}`);
 
   for (const id of allTicketIds) {
     await processTicket(id);
