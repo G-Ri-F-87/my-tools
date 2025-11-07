@@ -86,16 +86,18 @@ async function getTicketsFromFilter(filterId) {
 }
 
 async function searchTicketsAll() {
-  console.log(`\nSearching all open tickets from Intercom senders...`);
+  console.log(`\nSearching all tickets from Intercom senders...`);
   let tickets = [];
-  let page = `/search.json?query=${encodeURIComponent('requester:*@ecwid-by-lightspeed.intercom-mail.com status:open')}`;
+  let page = `/search.json?query=${encodeURIComponent('requester:*@ecwid-by-lightspeed.intercom-mail.com')}`;
 
   while (page) {
     const data = await zendeskRequest(page.replace(`/api/v2`, ''));
     if (data.results && data.results.length) {
-      const found = data.results.filter(r => r.result_type === 'ticket').map(r => r.id);
+      const found = data.results
+        .filter(r => r.result_type === 'ticket' && r.status === 'open')
+        .map(r => r.id);
       tickets = tickets.concat(found);
-      console.log(`Loaded ${tickets.length} tickets so far...`);
+      console.log(`Loaded ${tickets.length} open tickets so far...`);
     }
 
     if (data.next_page) {
@@ -105,7 +107,7 @@ async function searchTicketsAll() {
     }
   }
 
-  console.log(`Total tickets found by search: ${tickets.length}`);
+  console.log(`Total open tickets found by search: ${tickets.length}`);
   return tickets;
 }
 
