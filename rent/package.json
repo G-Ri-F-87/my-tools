@@ -4,10 +4,16 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build": "tsc --project tsconfig.json",
-    "watch": "tsc --watch --project tsconfig.json"
+    "build": "tsc --project tsconfig.json && cp src/style.css release/style.css",
+    "watch": "tsc --watch --project tsconfig.json",
+    "dev": "npm run build && concurrently \"npm:watch\" \"npm:watch:css\" \"npm:serve\"",
+    "watch:css": "chokidar src/style.css -c \"cp src/style.css release/style.css\"",
+    "serve": "lite-server --baseDir=release"
   },
   "devDependencies": {
+    "chokidar-cli": "^3.0.0",
+    "concurrently": "^8.2.2",
+    "lite-server": "^2.6.1",
     "typescript": "^5.4.5"
   }
 }
