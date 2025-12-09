@@ -34,3 +34,14 @@ jobs:
         with:
           name: rent-release
           path: release/**
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rent-latest
+          name: "Rent latest build"
+          files: |
+            release/script.js
+            release/style.css
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
