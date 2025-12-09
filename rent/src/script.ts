@@ -134,6 +134,7 @@ const createRentWidget = () => {
 
                         timeout += 1500;
                     });
+                    
                     setTimeout(() => {
                         toggleLoadingClass(false);
                         toggleCheckoutEnabled(true);
