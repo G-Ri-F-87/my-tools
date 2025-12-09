@@ -21,7 +21,7 @@ jobs:
         run: |
           mkdir zips
           for dir in */ ; do
-            if [[ "$dir" != ".github/" && "$dir" != "zips/" ]]; then
+            if [[ "$dir" != ".github/" && "$dir" != "zips/" && "$dir" != "rent/" ]]; then
               name=$(basename "$dir")
               zip -r "zips/$name.zip" "$dir"
             fi
