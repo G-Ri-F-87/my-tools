@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Pandora Toggle and Schedule Tab Listener
 // @namespace    rinat.tools
-// @version      0.2.0
-// @description  Pre-release version: handles Schedule Assessment tab updates, hover highlights, and Generate modal flow reliably.
+// @version      0.2.2
+// @description  Adds Tampermonkey menu command to manually trigger hover setup for reliability.
 // @match        https://pandora.ecwid.io/*
-// @grant        none
+// @grant        GM_registerMenuCommand
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraHighliter.tm.js
 // @downloadURL  https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraHighliter.tm.js
@@ -138,8 +138,17 @@
     }, 500);
   }
 
+  // Add menu entry for manual hover setup
+  if (typeof GM_registerMenuCommand === 'function') {
+    GM_registerMenuCommand('Reattach hover handler', () => {
+      console.log('🖱️ Manual trigger: reattaching hover handler');
+      attachRowHoverHandler();
+    });
+    console.log('📋 Tampermonkey menu command added: Reattach hover handler');
+  }
+
   window.addEventListener('load', () => {
-    console.log('🚀 Pandora schedule script started (v0.2.0)');
+    console.log('🚀 Pandora schedule script started (v0.2.2)');
     addToggleLogger();
     handleDateControlPopup();
   });
