@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Wootric Dashboard Automation
 // @namespace    rinat.tools
-// @version      1.4.2
+// @version      1.4.3
 // @downloadURL  https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/WootricStat.tm.js
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/WootricStat.tm.js
 // @description  Automates repetitive actions in Wootric Dashboard and extracts CSAT data in spreadsheet format with dynamic month selector
@@ -19,7 +19,8 @@
     names: [
       'Aiah', 'vince', 'Joanne', 'Jesse', 'Joselle',
       'Joven Balbastro', 'Rina Dela Rosa', 'Kerren Perez', 'Jassiel Gallego',
-      'Chester Nepomuceno', 'Jennifer Tio', 'Camela Valdez'
+      'Chester Nepomuceno', 'Jennifer Tio', 'Camela Valdez', 'Mark', 'Mark Lopez',
+      'Jamie', 'Jamie Nicanor', 'Jay Quiachon'
     ]
   };
 
