@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         Workday Schedule Runner (menu-launch, compact controls)
 // @namespace    local
-// @version      1.4.1
+// @version      1.4.2
 // @description  Parse SHIFTS text, run Workday updates. Transparent modal for visible background during processing. Detects employees with leave events and reports them in the status box after all actions complete.
 // @match        https://*.myworkday.com/*
 // @run-at       document-idle
@@ -18,7 +18,7 @@
   const NICK_DISPLAY = {
     "camela.valdez": "Camela Ann Valdez",
     "chester.nepomuceno": "Chester John Nepomuceno",
-    "iris.osano": "Iris Messiah Osano",
+    "iris.osano": "Iris Messiah Osano - Ulan",
     "jamie.nicanor": "Jamie Nicanor",
     "jay.quiachon": "Jay Francis Quiachon",
     "joanne.orden": "Joanne Princess Orden",
