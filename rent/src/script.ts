@@ -1,6 +1,6 @@
 declare const Ecwid: any;
 declare const ec: any;
-declare const rosettaMessages: Record<string, any>;
+declare let rosettaMessages: Record<string, any>;
 
 type TimeField = "drop_off" | "pick_up";
 
@@ -262,10 +262,12 @@ const createRentWidget = () => {
     }
 
     function setRosettaDays(): void {
-        rosettaMessages["new-frontend"]["CartPage.ItemsCount.few"] = "{count} days";
-        rosettaMessages["new-frontend"]["CartPage.ItemsCount.one"] = "{count} days";
-        rosettaMessages["new-frontend"]["CartPage.ItemsCount.plural"] = "{count} days";
-        rosettaMessages["new-frontend"]["CartPage.ItemsCount.singular"] = "1 day";
+        rosettaMessages = rosettaMessages || {};
+        rosettaMessages["storefront"] = rosettaMessages["storefront"] || {};
+        rosettaMessages["storefront"]["CartPage.ItemsCount.few"] = "{count} days";
+        rosettaMessages["storefront"]["CartPage.ItemsCount.one"] = "{count} days";
+        rosettaMessages["storefront"]["CartPage.ItemsCount.plural"] = "{count} days";
+        rosettaMessages["storefront"]["CartPage.ItemsCount.singular"] = "1 day";
     }
 
     function recountDays(): void {
