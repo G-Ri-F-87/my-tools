@@ -78,6 +78,36 @@ const createRentWidget = () => {
         }
     }
 
+    function updateAllCartItemsQuantity(quantity: number): void {
+        toggleLoadingClass(true);
+        toggleCheckoutEnabled(false);
+
+        Ecwid.Cart.get((cart: any) => {
+            const items = cart?.items || [];
+            const total = items.length;
+
+            if (total === 0) {
+                toggleLoadingClass(false);
+                toggleCheckoutEnabled(true);
+                return;
+            }
+
+            const updateNext = (idx: number) => {
+                if (idx >= total) {
+                    toggleLoadingClass(false);
+                    toggleCheckoutEnabled(true);
+                    return;
+                }
+
+                Ecwid.Cart.updateCartItem({ index: idx, quantity }, () => {
+                    updateNext(idx + 1);
+                });
+            };
+
+            updateNext(0);
+        });
+    }
+
     function createTimePickers(): void {
         const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(`.cstmz-time-picker input`));
         inputs.forEach((input, index) => {
@@ -123,22 +153,7 @@ const createRentWidget = () => {
                 const qty = getDaysBetween(selectedDates[0], selectedDates[1]);
                 if (qty !== null) {
                     state.days = qty;
-                    toggleLoadingClass(true);
-                    const inputs = document.querySelectorAll<HTMLInputElement>(`.ec-cart-item__count--input input`);
-                    let timeout = 100;
-                    Array.from(inputs).forEach((input) => {
-                        setTimeout(() => {
-                            input.value = String(qty);
-                            input.dispatchEvent(new Event(`input`));
-                        }, timeout);
-
-                        timeout += 1500;
-                    });
-                    
-                    setTimeout(() => {
-                        toggleLoadingClass(false);
-                        toggleCheckoutEnabled(true);
-                    }, timeout);
+                    updateAllCartItemsQuantity(qty);
                 } else {
                     toggleCheckoutEnabled(false);
                 }
@@ -150,21 +165,7 @@ const createRentWidget = () => {
                     const qty = getDaysBetween(state.datesArray[0], state.datesArray[1]);
                     if (qty !== null) {
                         state.days = qty;
-                        toggleLoadingClass(true);
-                        const inputs = document.querySelectorAll<HTMLInputElement>(`.ec-cart-item__count--input input`);
-                        let timeout = 100;
-                        Array.from(inputs).forEach((input) => {
-                            setTimeout(() => {
-                                input.value = String(qty);
-                                input.dispatchEvent(new Event(`input`));
-                            }, timeout);
-
-                            timeout += 1500;
-                        });
-                        setTimeout(() => {
-                            toggleLoadingClass(false);
-                            toggleCheckoutEnabled(true);
-                        }, timeout);
+                        updateAllCartItemsQuantity(qty);
                     } else {
                         toggleCheckoutEnabled(false);
                     }
