@@ -336,22 +336,22 @@ Ecwid.OnAPILoaded.add(() => {
     } = createRentWidget();
 
     loadAssets();
-    setRosettaDays();
+    // setRosettaDays();
     let cartChangedBound = false;
     Ecwid.OnPageLoaded.add((page: { type: string }) => {
         switch (page.type) {
             case `CART`:
                 createCustomField();
-                setTimeout(recountDays, 300);
+                // setTimeout(recountDays, 300);
                 if (!cartChangedBound) {
                     cartChangedBound = true;
                     Ecwid.OnCartChanged.add(() => {
-                        setTimeout(recountDays, 300);
+                        // setTimeout(recountDays, 300);
                     });
                 }
                 break;
             default:
-                setTimeout(recountDays, 300);
+                // setTimeout(recountDays, 300);
                 setTimeout(appendDays, 300);
                 break;
         }
