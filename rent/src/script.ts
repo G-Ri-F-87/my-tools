@@ -72,7 +72,7 @@ const createRentWidget = () => {
             const date1Ms = date1.getTime();
             const date2Ms = date2.getTime();
             const differenceMs = date2Ms - date1Ms;
-            return Math.ceil(differenceMs / oneDay);
+            return Math.max(1, Math.ceil(differenceMs / oneDay));
         } catch (_err) {
             return null;
         }
@@ -99,13 +99,40 @@ const createRentWidget = () => {
                     return;
                 }
 
+                let moved = false;
+                const timeout = setTimeout(() => {
+                    if (!moved) {
+                        moved = true;
+                        updateNext(idx + 1);
+                    }
+                }, 5000);
+
                 Ecwid.Cart.updateCartItem({ index: idx, quantity }, () => {
-                    updateNext(idx + 1);
+                    if (!moved) {
+                        moved = true;
+                        clearTimeout(timeout);
+                        updateNext(idx + 1);
+                    }
                 });
             };
 
             updateNext(0);
         });
+    }
+
+    function saveTimeField(field: TimeField, name: string, dateStr: string): void {
+        ec.order = ec.order || {};
+        ec.order.extraFields = ec.order.extraFields || {};
+        ec.order.extraFields[`time_${field}`] = {
+            type: "hidden",
+            title: `Requested ${name} Time`,
+            value: dateStr,
+            orderDetailsDisplaySection: "order_comments"
+        };
+        const [hourStr = "0", minuteStr = "0"] = dateStr.split(":", 2);
+        state.time[field].hour = parseInt(hourStr, 10);
+        state.time[field].minute = parseInt(minuteStr, 10);
+        state.time[field].string = dateStr;
     }
 
     function createTimePickers(): void {
@@ -120,20 +147,15 @@ const createRentWidget = () => {
                 defaultHour: state.time[field].hour,
                 defaultMinute: state.time[field].minute,
                 onChange: (_selectedDates: Date[], dateStr: string) => {
-                    ec.order = ec.order || {};
-                    ec.order.extraFields = ec.order.extraFields || {};
-                    ec.order.extraFields[`time_${field}`] = {
-                        type: "hidden",
-                        title: `Requested ${name} Time`,
-                        value: dateStr,
-                        orderDetailsDisplaySection: "order_comments"
-                    };
-                    const [hourStr = "0", minuteStr = "0"] = dateStr.split(":", 2);
-                    state.time[field].hour = parseInt(hourStr, 10);
-                    state.time[field].minute = parseInt(minuteStr, 10);
-                    state.time[field].string = dateStr;
+                    saveTimeField(field, name, dateStr);
                 }
             });
+
+            // сохраняем значение по умолчанию, если ещё не было выбрано пользователем
+            if (!state.time[field].string) {
+                const defaultStr = `${String(state.time[field].hour).padStart(2, "0")}:${String(state.time[field].minute).padStart(2, "0")}`;
+                saveTimeField(field, name, defaultStr);
+            }
         });
     }
 
@@ -237,7 +259,7 @@ const createRentWidget = () => {
                             
                             </div>
                             </div>`;
-        parent.appendChild(block);
+        parent.after(block);
 
         const dateInput = block.querySelector<HTMLInputElement>(`input`);
         if (dateInput) {
@@ -291,7 +313,7 @@ const createRentWidget = () => {
             const daysBlock = document.createElement(`div`);
             daysBlock.className = `cstmz-days`;
             daysBlock.innerHTML = `Rent days: ${days["value"]}`;
-            emailBlock.appendChild(daysBlock);
+            emailBlock.after(daysBlock);
         }
     }
 
@@ -315,14 +337,18 @@ Ecwid.OnAPILoaded.add(() => {
 
     loadAssets();
     setRosettaDays();
+    let cartChangedBound = false;
     Ecwid.OnPageLoaded.add((page: { type: string }) => {
         switch (page.type) {
             case `CART`:
                 createCustomField();
                 setTimeout(recountDays, 300);
-                Ecwid.OnCartChanged.add(() => {
-                    setTimeout(recountDays, 300);
-                });
+                if (!cartChangedBound) {
+                    cartChangedBound = true;
+                    Ecwid.OnCartChanged.add(() => {
+                        setTimeout(recountDays, 300);
+                    });
+                }
                 break;
             default:
                 setTimeout(recountDays, 300);
