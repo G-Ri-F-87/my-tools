@@ -154,6 +154,13 @@ function detectShiftViolations(timelineMap) {
             for (let j = i; j < sorted.length; j++) {
                 const r = sorted[j];
                 if (r.status === "invisible" || r.status === "away") {
+                    // Intercom logs a duplicate away event at the same second as the online event
+                    // when an agent starts their shift. This is a system artifact, not a real session end.
+                    // Example: online(23:00:41) + away(23:00:41) → skip the away, find real end at 01:00:18
+                    // Works correctly even if away comes before online (same timestamp, different sort order):
+                    // away(23:00:41) is processed before sessionStart exists → ignored as non-online event
+                    const timeSinceStart = r.ts.getTime() - sessionStart.ts.getTime();
+                    if (timeSinceStart <= 5000) continue;
                     const nextOnline = sorted.slice(j + 1).find((e) => e.status === "online");
                     const gap = nextOnline?.ts ? nextOnline.ts.getTime() - r.ts.getTime() : Infinity;
                     if (gap > 5 * 60 * 1000) {
