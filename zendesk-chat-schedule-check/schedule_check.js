@@ -44,13 +44,16 @@ const debugMode = args.includes("debug");
 const parseDateRange = (arg) => {
     const now = new Date();
     if (arg === 'this') {
+        // current week: Monday 00:00 → current hour
         const start = startOfWeek(now, { weekStartsOn: 1 });
         const end = startOfHour(now);
         return [start, end];
     } else if (arg === 'prev') {
+        // previous week: Monday 00:00 → Sunday 23:59
         const prev = subWeeks(now, 1);
         return [startOfWeek(prev, { weekStartsOn: 1 }), endOfWeek(prev, { weekStartsOn: 1 })];
     } else {
+        // custom range: YYYY-MM-DD_YYYY-MM-DD
         const [startStr, endStr] = arg.split("_");
         return [new Date(startStr), new Date(endStr)];
     }
@@ -59,6 +62,8 @@ const parseDateRange = (arg) => {
 const [startDate, endDate] = parseDateRange(args[0]);
 console.log(`📅 Checking from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
+// Fetches all admin_away_mode_change events from Intercom Activity Logs API.
+// Paginates using data.pages.next which is a full URL string (not a cursor object).
 async function fetchActivityLogs(startDate, endDate) {
     let allLogs = [];
     let pagesDebug = [];
@@ -90,6 +95,7 @@ async function fetchActivityLogs(startDate, endDate) {
         }
 
         const data = res.data;
+        // Only keep away mode changes; other activity types (login, etc.) are ignored
         const filtered = (data.activity_logs || []).filter(e => e.activity_type === "admin_away_mode_change");
         allLogs = allLogs.concat(filtered);
 
@@ -97,6 +103,7 @@ async function fetchActivityLogs(startDate, endDate) {
         progressBar.update(pagesFetched);
 
         pagesDebug.push(data.pages);
+        // pages.next is a full URL string when there are more pages, null/undefined otherwise
         url = typeof data.pages?.next === 'string' ? data.pages.next : null;
     } while (url);
 
@@ -104,6 +111,8 @@ async function fetchActivityLogs(startDate, endDate) {
     return { logs: allLogs, pagesDebug };
 }
 
+// Groups raw Intercom events by agent ID.
+// away_mode: false → agent went online; away_mode: true → agent went away/offline.
 function groupEventsByAgent(events) {
     const map = new Map();
     for (const e of events) {
@@ -117,6 +126,9 @@ function groupEventsByAgent(events) {
     return map;
 }
 
+// Shifts start at odd UTC hours (e.g. 23:00, 01:00, 03:00).
+// This rounds a timestamp down to the nearest odd hour to find the expected shift start.
+// Example: online at 23:06 → expected shift start at 23:00.
 function roundDownToOddHour(date) {
     const hours = date.getUTCHours();
     const oddHour = hours % 2 === 0 ? hours - 1 : hours;
@@ -131,15 +143,19 @@ function toUTC_HHMM(date) {
 
 function detectShiftViolations(timelineMap) {
     const results = [];
-    const GRACE_MINUTES = 1;
-    const EARLY_LEAVE_THRESHOLD_MS = 10 * 60 * 1000;
-    const EARLY_ARRIVAL_THRESHOLD_MS = 5 * 60 * 1000;
-    const SHIFT_DURATION_MS = 2 * 60 * 60 * 1000;
+    const GRACE_MINUTES = 1;                          // late tolerance: up to 1 min after shift start is ok
+    const EARLY_LEAVE_THRESHOLD_MS = 5 * 60 * 1000;  // flag if agent left more than 5 min before shift end
+    const EARLY_ARRIVAL_THRESHOLD_MS = 5 * 60 * 1000;// flag if agent came online more than 5 min too early
+    const SHIFT_DURATION_MS = 2 * 60 * 60 * 1000;    // all shifts are exactly 2 hours
 
     for (const [agentId, records] of timelineMap.entries()) {
         const sorted = records
             .map((r) => ({ ...r, ts: parseISO(r.start_time) }))
             .sort((a, b) => a.ts - b.ts);
+
+        // Tracks shift slots (expectedStart timestamps) already processed for this agent.
+        // Prevents false "was late" reports when an agent reconnects mid-shift after a short break.
+        const processedShiftStarts = new Set();
 
         for (let i = 0; i < sorted.length;) {
             if (sorted[i].status !== "online") {
@@ -150,6 +166,8 @@ function detectShiftViolations(timelineMap) {
             const sessionStart = sorted[i];
             i++;
 
+            // Find the session end: the first away event followed by a gap > 5 min to the next online.
+            // 5 min is the reconnect tolerance — brief disconnects within 5 min are treated as part of the session.
             let sessionEndIndex = -1;
             for (let j = i; j < sorted.length; j++) {
                 const r = sorted[j];
@@ -171,28 +189,52 @@ function detectShiftViolations(timelineMap) {
             }
 
             const expectedStart = roundDownToOddHour(sessionStart.ts);
+
+            // Skip reconnects within an already-processed shift slot.
+            // Example: agent goes offline for 8 min mid-shift, comes back.
+            // roundDownToOddHour maps the reconnect to the same expectedStart as the original session.
+            // Without this check, the reconnect would be reported as "was late N hours" for the same shift.
+            const shiftKey = expectedStart.getTime();
+            if (processedShiftStarts.has(shiftKey)) {
+                i = sessionEndIndex > 0 ? sessionEndIndex + 1 : i + 1;
+                continue;
+            }
+            processedShiftStarts.add(shiftKey);
+
             const graceStart = addMinutes(expectedStart, GRACE_MINUTES);
             const earlyAcceptableStart = subMinutes(expectedStart, EARLY_ARRIVAL_THRESHOLD_MS / 60000);
 
             const expectedEnd = new Date(expectedStart.getTime() + SHIFT_DURATION_MS);
             const earlyLeaveThreshold = new Date(expectedEnd.getTime() - EARLY_LEAVE_THRESHOLD_MS);
 
+            // actualEnd is the real session end used for violation detection (not extended for display)
             const actualEnd = sessionEndIndex !== -1 ? sorted[sessionEndIndex].ts : sessionStart.ts;
 
             const isLate = isAfter(sessionStart.ts, graceStart);
             const isTooEarly = isBefore(sessionStart.ts, earlyAcceptableStart);
             const isEarly = isAfter(earlyLeaveThreshold, actualEnd);
 
-            // build compacted event chain (online, invisible, away)
+            // Extend display end to include reconnects within the same shift window (up to 1h past expected end).
+            // This way "left early" lines show the full picture: online(01:00)|away(02:50)|online(02:58)|away(03:06)
+            // actualEnd above is still based on sessionEndIndex (the real session end for violation detection).
+            let displayEndIndex = sessionEndIndex;
+            if (sessionEndIndex !== -1) {
+                const windowEnd = new Date(expectedEnd.getTime() + 60 * 60 * 1000);
+                for (let k = sessionEndIndex + 1; k < sorted.length && sorted[k].ts <= windowEnd; k++) {
+                    displayEndIndex = k;
+                }
+            }
+
+            // Build compacted event chain for display (online, invisible, away)
             const slice = sorted.slice(
                 sorted.indexOf(sessionStart),
-                sessionEndIndex !== -1 ? sessionEndIndex + 1 : sorted.length
+                displayEndIndex !== -1 ? displayEndIndex + 1 : sorted.length
             );
 
-            // filter out Intercom system artifact duplicates from display:
-            // 1. event appears <= 5s after previous (e.g. away right after session-start online)
-            //    exception: a real online-after-away is kept even if timestamps are close
-            // 2. away appears <= 5s before the next online (pre-reconnect duplicate away)
+            // Filter out Intercom system artifact duplicates from display:
+            // 1. Event appears <= 5s after previous (e.g. away right after session-start online)
+            //    Exception: a real online-after-away is kept even if timestamps are close
+            // 2. Away appears <= 5s before the next online (pre-reconnect duplicate away)
             const displaySlice = slice.filter((ev, idx) => {
                 if (idx === 0 || idx === slice.length - 1) return true;
                 const prev = slice[idx - 1];
@@ -211,6 +253,7 @@ function detectShiftViolations(timelineMap) {
                     const end = ev.duration ? new Date(ev.ts.getTime() + ev.duration * 1000) : null;
                     return { status: ev.status, start, end };
                 })
+                // Merge consecutive events with the same status into one
                 .reduce((acc, ev) => {
                     const last = acc[acc.length - 1];
                     if (last && last.status === ev.status) {
@@ -250,6 +293,7 @@ function detectShiftViolations(timelineMap) {
     return results;
 }
 
+// Builds a map of agentId → email from raw event data (no extra API calls needed)
 function buildAgentNames(events) {
     const names = {};
     for (const e of events) {
@@ -260,23 +304,24 @@ function buildAgentNames(events) {
     return names;
 }
 
+// Returns a human-readable shift label based on the UTC shift start time.
+// Converts to local team time and checks if it falls within working hours.
 function getTeamShiftLabel(expectedStartUTC) {
     function formatSlot(team, localStart, localEnd) {
         const pad = (n) => String(n).padStart(2, "0");
         return `${team} ${pad(localStart.getUTCHours())}:00-${pad(localEnd.getUTCHours())}:00`;
     }
 
-    // navy shift: GMT+8
+    // navy shift: GMT+8 (Philippines / Singapore), working hours 05:00–15:00 local
     const navyStart = addHours(expectedStartUTC, 8);
     const navyEnd = addHours(expectedStartUTC, 10);
     if (navyStart.getUTCHours() >= 5 && navyStart.getUTCHours() < 15) {
         return formatSlot("navy", navyStart, navyEnd);
     }
 
-    // terra shift: GMT+4
+    // terra shift: GMT+4, working hours 09:00+ local (shift can cross midnight)
     const terraStart = addHours(expectedStartUTC, 4);
     const terraEnd = addHours(expectedStartUTC, 6);
-    // special case: shift can cross midnight
     if (terraStart.getUTCHours() >= 9 ?? terraStart.getUTCHours() < 1) {
         return formatSlot("terra", terraStart, terraEnd);
     }
@@ -292,7 +337,6 @@ function printShiftViolations(violations, names) {
 
     for (const v of violations) {
         let name = names[v.agentId] || `Agent#${v.agentId}`;
-        // remove @lightspeedhq.com if present
         if (name.endsWith("@lightspeedhq.com")) {
             name = name.replace("@lightspeedhq.com", "");
         }
@@ -310,17 +354,13 @@ function printShiftViolations(violations, names) {
     }
 }
 
-
 function formatToUTC(date) {
-
     const yyyy = date.getUTCFullYear();
-    const mm = String(date.getUTCMonth() + 1).padStart(2, '0'); // месяцы с 0
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(date.getUTCDate()).padStart(2, '0');
-
     const hh = String(date.getUTCHours()).padStart(2, '0');
     const min = String(date.getUTCMinutes()).padStart(2, '0');
     const ss = String(date.getUTCSeconds()).padStart(2, '0');
-
     return `${dd}-${mm}-${yyyy} ${hh}:${min}:${ss} UTC`;
 }
 
