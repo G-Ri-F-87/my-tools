@@ -189,7 +189,23 @@ function detectShiftViolations(timelineMap) {
                 sessionEndIndex !== -1 ? sessionEndIndex + 1 : sorted.length
             );
 
-            const sessionEvents = slice
+            // filter out Intercom system artifact duplicates from display:
+            // 1. event appears <= 5s after previous (e.g. away right after session-start online)
+            //    exception: a real online-after-away is kept even if timestamps are close
+            // 2. away appears <= 5s before the next online (pre-reconnect duplicate away)
+            const displaySlice = slice.filter((ev, idx) => {
+                if (idx === 0 || idx === slice.length - 1) return true;
+                const prev = slice[idx - 1];
+                const next = slice[idx + 1];
+                const gapFromPrev = ev.ts.getTime() - prev.ts.getTime();
+                const gapToNext = next ? next.ts.getTime() - ev.ts.getTime() : Infinity;
+                const isOnlineAfterAway = ev.status === 'online' && (prev.status === 'away' || prev.status === 'invisible');
+                if (gapFromPrev <= 5000 && !isOnlineAfterAway) return false;
+                if ((ev.status === 'away' || ev.status === 'invisible') && gapToNext <= 5000) return false;
+                return true;
+            });
+
+            const sessionEvents = displaySlice
                 .map(ev => {
                     const start = ev.ts;
                     const end = ev.duration ? new Date(ev.ts.getTime() + ev.duration * 1000) : null;
@@ -250,10 +266,10 @@ function getTeamShiftLabel(expectedStartUTC) {
         return `${team} ${pad(localStart.getUTCHours())}:00-${pad(localEnd.getUTCHours())}:00`;
     }
 
-    // navy shift: GMT+10
-    const navyStart = addHours(expectedStartUTC, 10);
-    const navyEnd = addHours(expectedStartUTC, 12);
-    if (navyStart.getUTCHours() >= 7 && navyStart.getUTCHours() < 15) {
+    // navy shift: GMT+8
+    const navyStart = addHours(expectedStartUTC, 8);
+    const navyEnd = addHours(expectedStartUTC, 10);
+    if (navyStart.getUTCHours() >= 5 && navyStart.getUTCHours() < 15) {
         return formatSlot("navy", navyStart, navyEnd);
     }
 
