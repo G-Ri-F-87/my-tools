@@ -29,7 +29,3 @@ html#ecwid_html body#ecwid_body .ec-size .ec-store .cstmz-pickers__time .form-co
 /* html#ecwid_html body#ecwid_body .ec-size--s.ec-size .ec-store .ec-cart__products--short-desktop.ec-cart__products--few .ec-cart-item-sum__count-label {
     display: none;
 } */
-
-html#ecwid_html body#ecwid_body .ec-size .ec-store.ec-store__cart-page .ec-cart-item--zero-price {
-    display: none;
-}

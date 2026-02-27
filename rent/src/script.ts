@@ -9,7 +9,6 @@ interface TimeEntry {
     minute: number;
     string: string;
 }
-const RENT_PRODUCT_ID = 814006503;
 
 const createRentWidget = () => {
     const state: {
@@ -64,8 +63,6 @@ const createRentWidget = () => {
         };
     }
 
-    let isCartUpdating = false;
-
     function getDaysBetween(date1?: Date, date2?: Date): number | null {
         if (!date1 || !date2) {
             return null;
@@ -75,130 +72,67 @@ const createRentWidget = () => {
             const date1Ms = date1.getTime();
             const date2Ms = date2.getTime();
             const differenceMs = date2Ms - date1Ms;
-            return Math.ceil(differenceMs / oneDay);
+            return Math.max(1, Math.ceil(differenceMs / oneDay));
         } catch (_err) {
             return null;
         }
     }
 
-    function updateCartQuantity(targetQty: number): void {
+    function updateAllCartItemsQuantity(quantity: number): void {
         toggleLoadingClass(true);
         toggleCheckoutEnabled(false);
-        isCartUpdating = true;
 
         Ecwid.Cart.get((cart: any) => {
             const items = cart?.items || [];
+            const total = items.length;
 
-            // Отбираем продукты для обработки (кроме исключаемого), идём с конца,
-            // чтобы removeProduct по индексам оставался корректным.
-            const tasks = items
-                .map((item: any, idx: number) => ({ item, idx }))
-                .filter(({ item }) => {
-                    const id = item?.product?.id ?? item?.id;
-                    return id !== RENT_PRODUCT_ID;
-                })
-                .sort((a, b) => b.idx - a.idx);
-
-            const finalize = () => {
+            if (total === 0) {
                 toggleLoadingClass(false);
                 toggleCheckoutEnabled(true);
-            };
-
-            if (tasks.length === 0) {
-                isCartUpdating = false;
-                finalize();
                 return;
             }
 
-            const processNext = (pos: number) => {
-                if (pos >= tasks.length) {
-                    isCartUpdating = false;
-                    finalize();
-                    return;
-                }
-
-                const { item, idx } = tasks[pos];
-                const id = item?.product?.id ?? item?.id;
-                const options = item?.selectedOptions || item?.options || {};
-                const currentQty = item?.quantity ?? 0;
-                const delta = targetQty - currentQty;
-
-                if (delta === 0) {
-                    processNext(pos + 1);
-                    return;
-                }
-
-                if (delta < 0) {
-                    decreaseProductToTarget(idx, id, targetQty, options, () => processNext(pos + 1));
-                    return;
-                }
-
-                increaseProductByDelta(id, delta, options, () => processNext(pos + 1));
-            };
-
-            processNext(0);
-        });
-    }
-
-    function decreaseProductToTarget(
-        idx: number,
-        id: number,
-        targetQty: number,
-        options: Record<string, any>,
-        done: () => void
-    ): void {
-        Ecwid.Cart.removeProduct(idx, () => {
-            Ecwid.Cart.addProduct({ id, quantity: targetQty, options }, done);
-        });
-    }
-
-    function increaseProductByDelta(
-        id: number,
-        delta: number,
-        options: Record<string, any>,
-        done: () => void
-    ): void {
-        Ecwid.Cart.addProduct({ id, quantity: delta, options }, done);
-    }
-
-    function syncCartGuard(): void {
-        if (isCartUpdating) {
-            return;
-        }
-        Ecwid.Cart.get((cart: any) => {
-            const items = cart?.items || [];
-            if (items.length === 0) return;
-
-            const hasRentProduct = items.some((item: any) => {
-                const id = item?.product?.id ?? item?.id;
-                return id === RENT_PRODUCT_ID;
-            });
-
-            // Если остался только наш rent‑товар — очищаем корзину.
-            if (items.length === 1 && hasRentProduct) {
-                isCartUpdating = true;
-                toggleLoadingClass(true);
-                toggleCheckoutEnabled(false);
-                Ecwid.Cart.clear(() => {
-                    // Перезагружаем страницу, чтобы избежать багов рендера после очистки.
-                    window.location.reload();
-                });
-                return;
-            }
-
-            // Если rent‑товара нет, но корзина не пуста — добавляем его.
-            if (!hasRentProduct) {
-                isCartUpdating = true;
-                toggleLoadingClass(true);
-                toggleCheckoutEnabled(false);
-
-                Ecwid.Cart.addProduct({ id: RENT_PRODUCT_ID, quantity: 1, options: { Quantity: "1" } }, () => {
-                    isCartUpdating = false;
+            const updateNext = (idx: number) => {
+                if (idx >= total) {
                     toggleLoadingClass(false);
                     toggleCheckoutEnabled(true);
+                    return;
+                }
+
+                let moved = false;
+                const timeout = setTimeout(() => {
+                    if (!moved) {
+                        moved = true;
+                        updateNext(idx + 1);
+                    }
+                }, 5000);
+
+                Ecwid.Cart.updateCartItem({ index: idx, quantity }, () => {
+                    if (!moved) {
+                        moved = true;
+                        clearTimeout(timeout);
+                        updateNext(idx + 1);
+                    }
                 });
-            }
+            };
+
+            updateNext(0);
         });
+    }
+
+    function saveTimeField(field: TimeField, name: string, dateStr: string): void {
+        ec.order = ec.order || {};
+        ec.order.extraFields = ec.order.extraFields || {};
+        ec.order.extraFields[`time_${field}`] = {
+            type: "hidden",
+            title: `Requested ${name} Time`,
+            value: dateStr,
+            orderDetailsDisplaySection: "order_comments"
+        };
+        const [hourStr = "0", minuteStr = "0"] = dateStr.split(":", 2);
+        state.time[field].hour = parseInt(hourStr, 10);
+        state.time[field].minute = parseInt(minuteStr, 10);
+        state.time[field].string = dateStr;
     }
 
     function createTimePickers(): void {
@@ -210,25 +144,18 @@ const createRentWidget = () => {
             (input as any).flatpickr({
                 enableTime: true,
                 noCalendar: true,
-                minTime: "09:00",
-                maxTime: "16:30",
                 defaultHour: state.time[field].hour,
                 defaultMinute: state.time[field].minute,
                 onChange: (_selectedDates: Date[], dateStr: string) => {
-                    ec.order = ec.order || {};
-                    ec.order.extraFields = ec.order.extraFields || {};
-                    ec.order.extraFields[`time_${field}`] = {
-                        type: "hidden",
-                        title: `Requested ${name} Time`,
-                        value: dateStr,
-                        orderDetailsDisplaySection: "order_comments"
-                    };
-                    const [hourStr = "0", minuteStr = "0"] = dateStr.split(":", 2);
-                    state.time[field].hour = parseInt(hourStr, 10);
-                    state.time[field].minute = parseInt(minuteStr, 10);
-                    state.time[field].string = dateStr;
+                    saveTimeField(field, name, dateStr);
                 }
             });
+
+            // сохраняем значение по умолчанию, если ещё не было выбрано пользователем
+            if (!state.time[field].string) {
+                const defaultStr = `${String(state.time[field].hour).padStart(2, "0")}:${String(state.time[field].minute).padStart(2, "0")}`;
+                saveTimeField(field, name, defaultStr);
+            }
         });
     }
 
@@ -248,7 +175,7 @@ const createRentWidget = () => {
                 const qty = getDaysBetween(selectedDates[0], selectedDates[1]);
                 if (qty !== null) {
                     state.days = qty;
-                    updateCartQuantity(qty);
+                    updateAllCartItemsQuantity(qty);
                 } else {
                     toggleCheckoutEnabled(false);
                 }
@@ -260,7 +187,7 @@ const createRentWidget = () => {
                     const qty = getDaysBetween(state.datesArray[0], state.datesArray[1]);
                     if (qty !== null) {
                         state.days = qty;
-                        updateCartQuantity(qty);
+                        updateAllCartItemsQuantity(qty);
                     } else {
                         toggleCheckoutEnabled(false);
                     }
@@ -332,7 +259,7 @@ const createRentWidget = () => {
                             
                             </div>
                             </div>`;
-        parent.appendChild(block);
+        parent.after(block);
 
         const dateInput = block.querySelector<HTMLInputElement>(`input`);
         if (dateInput) {
@@ -386,7 +313,7 @@ const createRentWidget = () => {
             const daysBlock = document.createElement(`div`);
             daysBlock.className = `cstmz-days`;
             daysBlock.innerHTML = `Rent days: ${days["value"]}`;
-            emailBlock.appendChild(daysBlock);
+            emailBlock.after(daysBlock);
         }
     }
 
@@ -395,36 +322,37 @@ const createRentWidget = () => {
         createCustomField,
         setRosettaDays,
         recountDays,
-        appendDays,
-        syncCartGuard
+        appendDays
     };
 };
 
-    Ecwid.OnAPILoaded.add(() => {
-        const {
-            loadAssets,
-            setRosettaDays,
-            createCustomField,
-            recountDays,
-            appendDays,
-            syncCartGuard
-        } = createRentWidget();
+Ecwid.OnAPILoaded.add(() => {
+    const {
+        loadAssets,
+        setRosettaDays,
+        createCustomField,
+        recountDays,
+        appendDays
+    } = createRentWidget();
 
-        loadAssets();
-        setRosettaDays();
-        Ecwid.OnPageLoaded.add((page: { type: string }) => {
-            switch (page.type) {
-                case `CART`:
-                    createCustomField();
-                    setTimeout(recountDays, 300);
+    loadAssets();
+    // setRosettaDays();
+    let cartChangedBound = false;
+    Ecwid.OnPageLoaded.add((page: { type: string }) => {
+        switch (page.type) {
+            case `CART`:
+                createCustomField();
+                // setTimeout(recountDays, 300);
+                if (!cartChangedBound) {
+                    cartChangedBound = true;
                     Ecwid.OnCartChanged.add(() => {
-                        setTimeout(recountDays, 300);
-                        syncCartGuard();
+                        // setTimeout(recountDays, 300);
                     });
-                    break;
-                default:
-                    setTimeout(recountDays, 300);
-                    setTimeout(appendDays, 300);
+                }
+                break;
+            default:
+                // setTimeout(recountDays, 300);
+                setTimeout(appendDays, 300);
                 break;
         }
     });
