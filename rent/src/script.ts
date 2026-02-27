@@ -144,6 +144,8 @@ const createRentWidget = () => {
             (input as any).flatpickr({
                 enableTime: true,
                 noCalendar: true,
+                minTime: "09:00",
+                maxTime: "16:30",
                 defaultHour: state.time[field].hour,
                 defaultMinute: state.time[field].minute,
                 onChange: (_selectedDates: Date[], dateStr: string) => {
