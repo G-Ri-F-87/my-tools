@@ -135,29 +135,47 @@ const createRentWidget = () => {
         state.time[field].string = dateStr;
     }
 
+    function generateTimeSlots(): string[] {
+        const slots: string[] = [];
+        for (let h = 9; h <= 16; h++) {
+            for (let m = 0; m < 60; m += 30) {
+                if (h === 16 && m > 30) break;
+                slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+            }
+        }
+        return slots;
+    }
+
     function createTimePickers(): void {
-        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(`.cstmz-time-picker input`));
-        inputs.forEach((input, index) => {
+        const slots = generateTimeSlots();
+        const containers = Array.from(document.querySelectorAll<HTMLElement>(`.cstmz-time-picker`));
+
+        containers.forEach((container, index) => {
             const field: TimeField = index === 0 ? `drop_off` : `pick_up`;
             const name = index === 0 ? `Drop Off` : `Pick Up`;
+            const input = container.querySelector<HTMLInputElement>(`input`);
+            if (!input) return;
 
-            (input as any).flatpickr({
-                enableTime: true,
-                noCalendar: true,
-                minTime: "09:00",
-                maxTime: "16:30",
-                defaultHour: state.time[field].hour,
-                defaultMinute: state.time[field].minute,
-                onChange: (_selectedDates: Date[], dateStr: string) => {
-                    saveTimeField(field, name, dateStr);
-                }
+            const select = document.createElement(`select`);
+            select.className = input.className;
+
+            for (const slot of slots) {
+                const option = document.createElement(`option`);
+                option.value = slot;
+                option.textContent = slot;
+                select.appendChild(option);
+            }
+
+            const defaultStr = state.time[field].string ||
+                `${String(state.time[field].hour).padStart(2, "0")}:${String(state.time[field].minute).padStart(2, "0")}`;
+            select.value = defaultStr;
+            saveTimeField(field, name, select.value);
+
+            select.addEventListener(`change`, () => {
+                saveTimeField(field, name, select.value);
             });
 
-            // сохраняем значение по умолчанию, если ещё не было выбрано пользователем
-            if (!state.time[field].string) {
-                const defaultStr = `${String(state.time[field].hour).padStart(2, "0")}:${String(state.time[field].minute).padStart(2, "0")}`;
-                saveTimeField(field, name, defaultStr);
-            }
+            input.replaceWith(select);
         });
     }
 
@@ -268,22 +286,6 @@ const createRentWidget = () => {
             createDatePicker(dateInput);
         }
         createTimePickers();
-
-        try {
-            const fromInput = document.querySelector<HTMLInputElement>(`.from-picker input`);
-            const toInput = document.querySelector<HTMLInputElement>(`.to-picker input`);
-
-            if (fromInput) {
-                fromInput.value = state.time["drop_off"].string;
-                fromInput.dispatchEvent(new Event("input"));
-            }
-            if (toInput) {
-                toInput.value = state.time["pick_up"].string;
-                toInput.dispatchEvent(new Event("input"));
-            }
-        } catch (err) {
-            console.log(err);
-        }
     }
 
     function setRosettaDays(): void {
