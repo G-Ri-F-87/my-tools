@@ -258,7 +258,7 @@ const createRentWidget = () => {
                             <div class='cstmz-pickers__time'>
                                 
                                 <div class='cstmz-time-picker from-picker'>
-                                    <div class="cstmz-picker__title">Requested Drop Off Time</div>
+                                    <div class="cstmz-picker__title">Drop Off Time</div>
                                     <div class="form-control">
                                     <input class="form-control__text" type="text">
                                     <div class="form-control__placeholder">
@@ -268,7 +268,7 @@ const createRentWidget = () => {
                                 </div>
                                 
                                 <div class='cstmz-time-picker to-picker'>
-                                    <div class="cstmz-picker__title">Requested Pick Up Time</div>
+                                    <div class="cstmz-picker__title">Pick Up Time</div>
                                     <div class="form-control">
                                     <input class="form-control__text" type="text">
                                     <div class="form-control__placeholder">
