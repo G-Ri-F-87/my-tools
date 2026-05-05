@@ -50,7 +50,7 @@
         if (squadList && !squadList.innerText.trim()) return;
 
         const table = td.closest('table');
-        const firstShiftRow = table && table.querySelector('tr.shift--chats');
+        const firstShiftRow = table && (table.querySelector('tr.shift--doublechats') || table.querySelector('tr.shift--chats'));
         const anchorCell = firstShiftRow ? firstShiftRow.cells[td.cellIndex] : null;
 
         currentCell = td;
@@ -84,7 +84,7 @@
         if (!table) return;
 
         const nicknames = new Set();
-        table.querySelectorAll('tr.shift--chats, tr.shift--emails').forEach(row => {
+        table.querySelectorAll('tr.shift--chats, tr.shift--doublechats, tr.shift--emails').forEach(row => {
             const cell = row.cells[colIndex];
             if (!cell) return;
             cell.querySelectorAll('div.squad-list > div[id]').forEach(el => {
@@ -103,11 +103,19 @@
             });
         });
 
-        const parts = [[...nicknames].sort((a, b) => a.localeCompare(b)).join('\n')];
+        const shuffle = arr => {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        };
+
+        const parts = [shuffle([...nicknames]).join('\n')];
         if (callsNicknames.size) {
             parts.push('');
             parts.push('Calls');
-            parts.push([...callsNicknames].sort((a, b) => a.localeCompare(b)).join('\n'));
+            parts.push(shuffle([...callsNicknames]).join('\n'));
         }
 
         navigator.clipboard.writeText(parts.join('\n')).then(() => {
