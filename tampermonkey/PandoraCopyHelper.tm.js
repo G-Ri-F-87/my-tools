@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         Pandora Copy Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Copy helpers for pandora.ecwid.io tables
 // @match        https://pandora.ecwid.io/*
+// @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraCopyHelper.tm.js
+// @downloadURL  https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraCopyHelper.tm.js
 // @grant        none
 // ==/UserScript==
 
@@ -33,9 +35,14 @@
 
     let currentCell = null;
 
+    const getPanel = () => document.querySelector('.p-splitter .p-splitterpanel:nth-child(1)');
+
     document.addEventListener('mouseover', (e) => {
         const td = e.target.closest('td');
         if (!td) return;
+
+        const panel = getPanel();
+        if (!panel || !panel.contains(td)) return;
 
         if (td.cellIndex === 0) return;
 
@@ -103,6 +110,13 @@
             parts.push([...callsNicknames].sort((a, b) => a.localeCompare(b)).join('\n'));
         }
 
-        navigator.clipboard.writeText(parts.join('\n'));
+        navigator.clipboard.writeText(parts.join('\n')).then(() => {
+            icon.textContent = '✓';
+            icon.style.background = 'rgba(34, 197, 94, 0.85)';
+            setTimeout(() => {
+                icon.textContent = '⎘';
+                icon.style.background = 'rgba(0, 0, 0, 0.6)';
+            }, 1500);
+        });
     });
 })();
