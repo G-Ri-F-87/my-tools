@@ -93,8 +93,11 @@
         });
 
         const callsNicknames = new Set();
-        table.querySelectorAll('tr.shift--emails').forEach(emailRow => {
-            const next = emailRow.nextElementSibling;
+        const callsAnchorRows = table.querySelectorAll('tr.shift--emails').length
+            ? table.querySelectorAll('tr.shift--emails')
+            : table.querySelectorAll('tr.shift--socialchats');
+        callsAnchorRows.forEach(anchorRow => {
+            const next = anchorRow.nextElementSibling;
             if (!next || !next.classList.contains('shift--tier1duty')) return;
             const cell = next.cells[colIndex];
             if (!cell) return;
