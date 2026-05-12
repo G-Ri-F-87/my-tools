@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pandora Copy Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.4
+// @version      0.5
 // @description  Copy helpers for pandora.ecwid.io tables
 // @match        https://pandora.ecwid.io/*
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraCopyHelper.tm.js
@@ -162,9 +162,12 @@
             });
         });
 
-        const parts = [shuffle([...nicknames]).join('\n')];
+        const shuffledNicknames = shuffle([...nicknames]);
+        const hasEmails = table.querySelectorAll('tr.shift--emails').length > 0;
+        const parts = [shuffledNicknames.join('\n')];
         if (callsNicknames.size) {
-            parts.push('');
+            const padding = hasEmails ? Math.max(1, 16 - shuffledNicknames.length) : 1;
+            parts.push(...Array(padding).fill(''));
             parts.push('Calls');
             parts.push(shuffle([...callsNicknames]).join('\n'));
         }
