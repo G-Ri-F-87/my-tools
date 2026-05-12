@@ -140,7 +140,7 @@
         if (!table) return;
 
         const nicknames = new Set();
-        table.querySelectorAll('tr.shift--chats, tr.shift--doublechats, tr.shift--emails').forEach(row => {
+        table.querySelectorAll('tr.shift--chats, tr.shift--emails').forEach(row => {
             const cell = row.cells[colIndex];
             if (!cell) return;
             cell.querySelectorAll('div.squad-list > div[id]').forEach(el => {
