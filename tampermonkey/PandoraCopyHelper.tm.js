@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pandora Copy Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.6
 // @description  Copy helpers for pandora.ecwid.io tables
 // @match        https://pandora.ecwid.io/*
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraCopyHelper.tm.js
