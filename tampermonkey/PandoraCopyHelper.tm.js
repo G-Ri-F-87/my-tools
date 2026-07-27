@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pandora Copy Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.6
+// @version      0.7
 // @description  Copy helpers for pandora.ecwid.io tables
 // @match        https://pandora.ecwid.io/*
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraCopyHelper.tm.js
@@ -149,12 +149,14 @@
         });
 
         const callsNicknames = new Set();
-        const callsAnchorRows = table.querySelectorAll('tr.shift--emails').length
+        const hasEmailRows = table.querySelectorAll('tr.shift--emails').length > 0;
+        const callsAnchorRows = hasEmailRows
             ? table.querySelectorAll('tr.shift--emails')
             : table.querySelectorAll('tr.shift--socialchats');
+        const callsRowClass = hasEmailRows ? 'shift--callsday' : 'shift--tier1duty';
         callsAnchorRows.forEach(anchorRow => {
             const next = anchorRow.nextElementSibling;
-            if (!next || !next.classList.contains('shift--tier1duty')) return;
+            if (!next || !next.classList.contains(callsRowClass)) return;
             const cell = next.cells[colIndex];
             if (!cell) return;
             cell.querySelectorAll('div.squad-list > div[id]').forEach(el => {
@@ -163,10 +165,9 @@
         });
 
         const shuffledNicknames = shuffle([...nicknames]);
-        const hasEmails = table.querySelectorAll('tr.shift--emails').length > 0;
         const parts = [shuffledNicknames.join('\n')];
         if (callsNicknames.size) {
-            const padding = hasEmails ? Math.max(1, 16 - shuffledNicknames.length) : 1;
+            const padding = hasEmailRows ? Math.max(1, 16 - shuffledNicknames.length) : 1;
             parts.push(...Array(padding).fill(''));
             parts.push('Calls');
             parts.push(shuffle([...callsNicknames]).join('\n'));
