@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pandora Copy Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.7
+// @version      0.8
 // @description  Copy helpers for pandora.ecwid.io tables
 // @match        https://pandora.ecwid.io/*
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraCopyHelper.tm.js
@@ -69,7 +69,9 @@
         if (td.cellIndex === 0) return;
 
         const squadList = td.querySelector('div.squad-list');
-        if (squadList && !squadList.innerText.trim()) return;
+        if (squadList && !squadList.innerText.trim()) {
+            if (td.dataset.hasShift !== 'true') return;
+        }
 
         const table = td.closest('table');
 
@@ -124,6 +126,24 @@
             el.style.background = 'rgba(0, 0, 0, 0.6)';
         }, 1500);
     };
+
+    const markDoublechatsCells = (table) => {
+        table.querySelectorAll('tr.shift--doublechats').forEach(row => {
+            [...row.cells].forEach((cell, colIndex) => {
+                const hasContent = [...table.querySelectorAll('tr.shift--chats, tr.shift--emails')]
+                    .some(r => r.cells[colIndex]?.querySelector('div.squad-list > div[id]'));
+                cell.dataset.hasShift = hasContent ? 'true' : 'false';
+            });
+        });
+    };
+
+    const observer = new MutationObserver(() => {
+        const panel = getPanel();
+        if (!panel) return;
+        panel.querySelectorAll('table').forEach(markDoublechatsCells);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
 
     const shuffle = arr => {
         for (let i = arr.length - 1; i > 0; i--) {
