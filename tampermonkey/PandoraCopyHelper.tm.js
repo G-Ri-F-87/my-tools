@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pandora Copy Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.8
+// @version      1.0
 // @description  Copy helpers for pandora.ecwid.io tables
 // @match        https://pandora.ecwid.io/*
 // @updateURL    https://raw.githubusercontent.com/G-Ri-F-87/my-tools/main/tampermonkey/PandoraCopyHelper.tm.js
@@ -46,6 +46,7 @@
     const getPanel = () => document.querySelector('.p-splitter .p-splitterpanel:nth-child(1)');
 
     const isBillmanRow = td => td.closest('tr.shift--billmanchats') !== null;
+    const isBillingRow = td => td.closest('tr.shift--chats.shift__15') !== null;
 
     const showIcon = (el, rect, offsetLeft = 26) => {
         el.style.top = (rect.top + 4) + 'px';
@@ -79,6 +80,14 @@
             currentBillmanCell = td;
             const rect = td.getBoundingClientRect();
             showIcon(billmanIcon, rect);
+            return;
+        }
+
+        if (isBillingRow(td)) {
+            currentBillmanCell = td;
+            const billmanRow = table && table.querySelector('tr.shift--billmanchats');
+            const anchorCell = billmanRow ? billmanRow.cells[td.cellIndex] : td;
+            showIcon(billmanIcon, anchorCell.getBoundingClientRect());
             return;
         }
 
@@ -130,7 +139,7 @@
     const markDoublechatsCells = (table) => {
         table.querySelectorAll('tr.shift--doublechats').forEach(row => {
             [...row.cells].forEach((cell, colIndex) => {
-                const hasContent = [...table.querySelectorAll('tr.shift--chats, tr.shift--emails')]
+                const hasContent = [...table.querySelectorAll('tr.shift--chats:not(.shift__15), tr.shift--emails')]
                     .some(r => r.cells[colIndex]?.querySelector('div.squad-list > div[id]'));
                 cell.dataset.hasShift = hasContent ? 'true' : 'false';
             });
@@ -160,7 +169,7 @@
         if (!table) return;
 
         const nicknames = new Set();
-        table.querySelectorAll('tr.shift--chats, tr.shift--emails').forEach(row => {
+        table.querySelectorAll('tr.shift--chats:not(.shift__15), tr.shift--emails').forEach(row => {
             const cell = row.cells[colIndex];
             if (!cell) return;
             cell.querySelectorAll('div.squad-list > div[id]').forEach(el => {
@@ -199,10 +208,20 @@
     billmanIcon.addEventListener('click', () => {
         if (!currentBillmanCell) return;
 
+        const colIndex = currentBillmanCell.cellIndex;
+        const table = currentBillmanCell.closest('table');
         const nicknames = new Set();
-        currentBillmanCell.querySelectorAll('div.squad-list > div[id]').forEach(el => {
-            if (el.id) nicknames.add(el.id);
-        });
+
+        const collectFromRow = (selector) => {
+            const row = table && table.querySelector(selector);
+            const cell = row && row.cells[colIndex];
+            if (cell) cell.querySelectorAll('div.squad-list > div[id]').forEach(el => {
+                if (el.id) nicknames.add(el.id);
+            });
+        };
+
+        collectFromRow('tr.shift--billmanchats');
+        collectFromRow('tr.shift--chats.shift__15');
 
         navigator.clipboard.writeText(shuffle([...nicknames]).join('\n')).then(() => flashIcon(billmanIcon));
     });
