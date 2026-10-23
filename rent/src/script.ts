@@ -52,6 +52,12 @@ const createRentWidget = () => {
         }
     }
 
+    function syncExtraFields(): void {
+        if (typeof Ecwid !== "undefined" && typeof Ecwid.refreshConfig === "function") {
+            Ecwid.refreshConfig();
+        }
+    }
+
     function saveToExtraField(val: string): void {
         ec.order = ec.order || {};
         ec.order.extraFields = ec.order.extraFields || {};
@@ -61,6 +67,7 @@ const createRentWidget = () => {
             value: val,
             orderDetailsDisplaySection: "order_comments"
         };
+        syncExtraFields();
     }
 
     function getDaysBetween(date1?: Date, date2?: Date): number | null {
@@ -129,6 +136,7 @@ const createRentWidget = () => {
             value: dateStr,
             orderDetailsDisplaySection: "order_comments"
         };
+        syncExtraFields();
         const [hourStr = "0", minuteStr = "0"] = dateStr.split(":", 2);
         state.time[field].hour = parseInt(hourStr, 10);
         state.time[field].minute = parseInt(minuteStr, 10);
